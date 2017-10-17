@@ -9,6 +9,9 @@ import threading
 import cursor
 import time
 import logging
+import shutil
+import math
+import signal
 
 from spinners.spinners import Spinners
 from log_symbols.symbols import LogSymbols
@@ -18,6 +21,15 @@ logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s:%(levelname)s:%(message)s"
 )
+
+
+def resize_handler(signum, frame):
+    global term_cols
+    term_cols = shutil.get_terminal_size((80, 20)).columns
+
+
+term_cols = shutil.get_terminal_size((80, 20)).columns
+signal.signal(signal.SIGWINCH, resize_handler)
 
 
 class Halo(object):
@@ -62,10 +74,12 @@ class Halo(object):
         self._color = self._options['color']
         self._stream = self._options['stream']
         self._frame_index = 0
+        self._frame_len = len(self.spinner['frames'][0])
         self._spinner_thread = None
         self._stop_spinner = None
         self._spinner_id = None
         self._enabled = self._options['enabled'] # Need to check for stream
+        self._num_lines = 1
 
     @property
     def spinner(self):
@@ -190,8 +204,9 @@ class Halo(object):
         if not self._enabled:
             return self
 
+        self._num_lines = int(math.ceil((self._frame_len + 1 + len(self._text))/term_cols))
         self._stream.write('\r')
-        self._stream.write(self.CLEAR_LINE)
+        self._stream.write((self.CLEAR_LINE + '\033[A') * (self._num_lines - 1) + self.CLEAR_LINE)
 
         return self
 
