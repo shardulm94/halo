@@ -8,12 +8,24 @@ import sys
 import threading
 import time
 import functools
+import shutil
+import math
+import signal
 
 import cursor
 from spinners.spinners import Spinners
 from log_symbols.symbols import LogSymbols
 
 from halo._utils import is_supported, colored_frame, is_text_type, decode_utf_8_text
+
+
+def resize_handler(signum, frame):
+    global term_cols
+    term_cols = shutil.get_terminal_size((80, 20)).columns
+
+
+term_cols = shutil.get_terminal_size((80, 20)).columns
+signal.signal(signal.SIGWINCH, resize_handler)
 
 
 class Halo(object):
@@ -63,7 +75,9 @@ class Halo(object):
         self._spinner_thread = None
         self._stop_spinner = None
         self._spinner_id = None
-        self._enabled = enabled # Need to check for stream
+        self._enabled = enabled  # Need to check for stream
+        self._frame_len = len(self.spinner['frames'][0])
+        self._num_lines = 1
 
     def __enter__(self):
         """Starts the spinner on a separate thread. For use in context managers.
@@ -209,8 +223,9 @@ class Halo(object):
         if not self._enabled:
             return self
 
+        self._num_lines = int(math.ceil((self._frame_len + 1 + len(self._text))/term_cols))
         self._stream.write('\r')
-        self._stream.write(self.CLEAR_LINE)
+        self._stream.write((self.CLEAR_LINE + '\033[A') * (self._num_lines - 1) + self.CLEAR_LINE)
 
         return self
 
